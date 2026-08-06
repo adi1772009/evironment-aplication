@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Terra Spec</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
+    #root { width: 100%; height: 100vh; }
+    .scrollbar::-webkit-scrollbar { width: 5px; }
+    .scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar::-webkit-scrollbar-thumb { background: #81C784; border-radius: 10px; }
+  </style>
+</head>
+<body style="background:#F5F7F5;">
+
+<!-- ═══════════ SPLASH ═══════════ -->
+<div id="splash" style="position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;">
+  <svg width="100" height="100" viewBox="0 0 95 95">
+    <circle cx="47.5" cy="47.5" r="37.5" fill="#2E7D32" stroke="#1B5E20" stroke-width="2"/>
+    <path d="M 15 47.5 A 32.5 32.5 0 0 1 80 47.5" fill="#81C784"/>
+    <text x="47.5" y="55" text-anchor="middle" fill="#fff" font-size="18" font-weight="bold">CO2</text>
+  </svg>
+  <h1 style="margin-top:20px;font-size:2rem;font-weight:700;color:#2E7D32;letter-spacing:3px;">TERRA SPEC</h1>
+</div>
+
+<!-- ═══════════ APP ═══════════ -->
+<div id="app" style="display:none;height:100vh;display:none;flex-direction:column;position:relative;">
+
+  <!-- TOP -->
+  <div style="flex:1;display:flex;gap:12px;padding:12px;min-height:0;">
+
+    <!-- SIDEBAR -->
+    <div style="width:290px;border-radius:24px;padding:20px;border:2px solid #333;background:#F1F8E9;display:flex;flex-direction:column;flex-shrink:0;">
+      <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:20px;">
+        <svg width="85" height="85" viewBox="0 0 95 95">
+          <circle cx="47.5" cy="47.5" r="37.5" fill="#2E7D32" stroke="#1B5E20" stroke-width="2"/>
+          <path d="M 15 47.5 A 32.5 32.5 0 0 1 80 47.5" fill="#81C784"/>
+          <text x="47.5" y="55" text-anchor="middle" fill="#fff" font-size="18" font-weight="bold">CO2</text>
+        </svg>
+        <h1 style="margin-top:8px;font-size:1.3rem;font-weight:700;color:#2E7D32;letter-spacing:2px;">TERRA SPEC</h1>
+      </div>
+      <div id="fuel-btns" style="display:flex;flex-direction:column;gap:8px;flex:1;overflow-y:auto;" class="scrollbar"></div>
+      <button id="prog-btn" onclick="openProgress()"
+        style="margin-top:14px;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:12px;border:1.5px solid #1B5E20;background:linear-gradient(135deg,#2E7D32,#1B5E20);color:#fff;font-weight:600;font-size:0.9rem;cursor:pointer;box-shadow:0 2px 12px rgba(46,125,50,0.35);">
+        <!-- bar-chart icon -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Emission Progress</span>
+        <span id="sess-badge" style="display:none;background:#81C784;color:#1B5E20;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;"></span>
+      </button>
+    </div>
+
+    <!-- ENTRY PANEL -->
+    <div style="flex:1;border-radius:24px;border:2px solid #333;background:#fff;overflow-y:auto;" class="scrollbar">
+      <div style="padding:24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <h2 id="panel-title" style="font-size:1.4rem;font-weight:700;color:#2E7D32;margin:0;"></h2>
+          <div id="mode-btns" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+          <button onclick="resetMode()" style="padding:8px 16px;border-radius:8px;border:1.5px solid #D32F2F;color:#D32F2F;background:transparent;font-weight:700;font-size:0.8rem;cursor:pointer;">↺ RESET CURRENT MODE</button>
+        </div>
+        <div id="entry-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM -->
+  <div style="display:flex;justify-content:center;gap:24px;padding:0 24px 20px;flex-wrap:wrap;">
+    <div style="width:450px;height:400px;border-radius:24px;border:2px solid #333;background:#fff;padding:22px;flex-shrink:0;">
+      <h3 id="chart-title" style="font-size:1rem;font-weight:700;color:#2E7D32;margin:0 0 14px 0;"></h3>
+      <canvas id="emi-chart" width="400" height="290"></canvas>
+    </div>
+    <div style="width:450px;height:400px;border-radius:24px;border:2px solid #333;background:#fff;padding:22px;flex-shrink:0;">
+      <h3 style="font-size:1rem;font-weight:700;color:#2E7D32;margin:0 0 14px 0;">ENVIRONMENTAL AUDIT</h3>
+      <div id="audit" style="height:316px;overflow-y:auto;padding:14px;border-radius:14px;background:#FAFAFA;font-family:monospace;font-size:0.8rem;line-height:1.7;color:#222;" class="scrollbar"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PROGRESS PANEL ═══════════ -->
+<div id="prog-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:440px;z-index:50;background:#F0F7F0;border-left:2px solid #333;display:none;flex-direction:column;box-shadow:-4px 0 24px rgba(0,0,0,0.12);">
+
+  <!-- Panel Header (green gradient) -->
+  <div id="prog-header" style="background:linear-gradient(160deg,#1B5E20 0%,#2E7D32 60%,#388E3C 100%);padding:20px 20px 0 20px;">
+
+    <!-- Title row -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:8px;display:flex;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <div>
+          <div style="font-size:1.1rem;font-weight:700;color:#fff;">Emission Progress</div>
+          <div id="days-label" style="font-size:0.72rem;color:#A5D6A7;margin-top:2px;"></div>
+        </div>
+      </div>
+      <button onclick="closeProgress()" style="background:transparent;border:none;cursor:pointer;padding:8px;border-radius:10px;color:#fff;display:flex;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Hero card -->
+    <div style="background:rgba(0,0,0,0.18);border-radius:16px;padding:16px;margin-bottom:16px;">
+      <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#A5D6A7;margin-bottom:6px;">Total CO₂ Logged</div>
+      <div style="display:flex;align-items:flex-end;gap:8px;">
+        <span id="hero-co2" style="font-size:2rem;font-weight:700;color:#fff;">0</span>
+        <span style="font-size:0.85rem;font-weight:500;color:#A5D6A7;margin-bottom:4px;">kg CO₂</span>
+        <div id="compliance-badge" style="margin-left:auto;display:flex;align-items:center;gap:5px;padding:4px 12px;border-radius:999px;"></div>
+      </div>
+    </div>
+
+    <!-- Stat tiles -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+      <div style="background:rgba(255,255,255,0.1);border-radius:12px;padding:12px;">
+        <div style="font-size:0.68rem;color:#A5D6A7;margin-bottom:4px;">Sessions</div>
+        <div id="stat-sessions" style="font-size:1.3rem;font-weight:700;color:#fff;">0</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.1);border-radius:12px;padding:12px;">
+        <div style="font-size:0.68rem;color:#A5D6A7;margin-bottom:4px;">Fuels Used</div>
+        <div id="stat-fuels" style="font-size:1.3rem;font-weight:700;color:#fff;">0</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.1);border-radius:12px;padding:12px;">
+        <div style="font-size:0.68rem;color:#A5D6A7;margin-bottom:4px;">Days Active</div>
+        <div id="stat-days" style="font-size:1.3rem;font-weight:700;color:#fff;">0</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;border-bottom:1px solid rgba(255,255,255,0.15);">
+      <button id="tab-overview" onclick="switchTab('overview')"
+        style="padding:10px 20px;font-size:0.875rem;font-weight:600;background:transparent;border:none;color:#fff;cursor:pointer;border-bottom:2px solid #81C784;margin-bottom:-1px;">
+        Overview
+      </button>
+      <button id="tab-sessions" onclick="switchTab('sessions')"
+        style="padding:10px 20px;font-size:0.875rem;font-weight:600;background:transparent;border:none;color:rgba(255,255,255,0.5);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;">
+        Sessions
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel Body -->
+  <div id="prog-body" style="flex:1;overflow-y:auto;padding:16px;" class="scrollbar"></div>
+
+  <!-- Panel Footer -->
+  <div id="prog-footer" style="display:none;padding:12px 16px;border-top:1.5px solid #C8E6C9;background:#F0F7F0;">
+    <button onclick="clearHistory()" style="width:100%;padding:10px;border-radius:12px;border:1.5px solid #D32F2F;color:#D32F2F;background:transparent;font-weight:600;font-size:0.875rem;cursor:pointer;">
+      Clear All History
+    </button>
+  </div>
+</div>
+
+<!-- Footer credit -->
+<div style="position:fixed;bottom:8px;left:10px;font-size:0.8rem;font-style:italic;color:#777;z-index:5;">Made by Aditya with Gemini</div>
+
+<script>
+// ─── Constants ────────────────────────────────────────────────────────────────
+const FACTORS     = { petrol:2.31, diesel:2.68, coal:2.42, firewood:1.65, lpg:2.98, cng:2.66, electricity:0.85 };
+const PERIODS     = { Daily:7, Weekly:4, Monthly:6, Yearly:5 };
+const THRESHOLDS  = { Daily:15, Weekly:100, Monthly:5000, Yearly:100000 };
+const HISTORY_KEY = 'terraspec_activity_history';
+const MAX_HISTORY = 300;
+const UNIT_MAP    = { petrol:'liters', diesel:'liters', coal:'kg', firewood:'kg', lpg:'kg', cng:'m³', electricity:'kWh' };
+const FUEL_COLORS = { petrol:'#1565C0', diesel:'#4527A0', coal:'#37474F', firewood:'#6D4C41', lpg:'#00838F', cng:'#2E7D32', electricity:'#F9A825' };
+const FUEL_SVG    = {
+  petrol:      `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>`,
+  diesel:      `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>`,
+  coal:        `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`,
+  firewood:    `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8a5 5 0 0 0-10 0c0 5 5 12 5 12s5-7 5-12z"/><line x1="12" y1="8" x2="12" y2="20"/></svg>`,
+  lpg:         `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 10 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>`,
+  cng:         `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 10 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>`,
+  electricity: `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`
+};
+
+const ADVICE = {
+  petrol:      { high:["Review logistics routes to optimize fuel usage.","Transition fleet to hybrid/EV models to lower long-term overhead."], stable:["Sustainable consumption levels. Maintain current logistical efficiency."] },
+  diesel:      { high:["Review logistics routes to optimize fuel usage.","Transition fleet to hybrid/EV models to lower long-term overhead."], stable:["Sustainable consumption levels. Maintain current logistical efficiency."] },
+  coal:        { high:["Exceeding industrial benchmarks. Consider upgrading scrubbers or transitioning to Natural Gas.","Implement heat recovery systems to maximize energy extraction from coal combustion."], stable:["Emissions are within corporate compliance levels for this period."] },
+  electricity: { high:["Install solar arrays to offset grid dependency.","Conduct a facility-wide energy audit to identify hardware inefficiencies."], stable:["Efficient electricity profile. Continue monitoring peak-load times."] },
+  firewood:    { high:["Analyze machinery duty cycles for energy savings.","Continue scheduled maintenance to ensure peak efficiency."], stable:["Sustainable consumption levels."] },
+  lpg:         { high:["Analyze machinery duty cycles for energy savings.","Continue scheduled maintenance to ensure peak efficiency."], stable:["Sustainable consumption levels."] },
+  cng:         { high:["Analyze machinery duty cycles for energy savings.","Continue scheduled maintenance to ensure peak efficiency."], stable:["Sustainable consumption levels."] }
+};
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let fuel = 'petrol', mode = 'Daily', entries = [], chartInst = null, debTimer = null, activeTab = 'overview';
+
+// ─── History helpers ──────────────────────────────────────────────────────────
+function loadHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); } catch { return []; } }
+function saveHistory(r) { localStorage.setItem(HISTORY_KEY, JSON.stringify(r.slice(-MAX_HISTORY))); }
+function pushActivity(obj) {
+  const h = loadHistory();
+  h.push({ ...obj, id:`${Date.now()}_${Math.random().toString(36).slice(2,7)}`, timestamp:Date.now() });
+  saveHistory(h);
+  refreshBadge();
+}
+function clearHistory() { localStorage.removeItem(HISTORY_KEY); refreshBadge(); renderProgressBody(); }
+
+function refreshBadge() {
+  const h = loadHistory();
+  const sessions = h.filter(r => r.type==='session_start').length;
+  const b = document.getElementById('sess-badge');
+  b.textContent = sessions;
+  b.style.display = sessions > 0 ? 'inline' : 'none';
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+function computeFuelStats() {
+  return Object.keys(FACTORS).map(f => {
+    let totalCO2 = 0, sessions = 0, compliant = 0;
+    Object.keys(PERIODS).forEach(m => {
+      const raw = localStorage.getItem(`${f}_${m}`);
+      if (!raw) return;
+      const nums = JSON.parse(raw).map(v => parseFloat(v)||0);
+      const co2 = nums.reduce((s,v) => s + v * FACTORS[f], 0);
+      if (co2 > 0) {
+        sessions++;
+        totalCO2 += co2;
+        if ((co2 / nums.length) <= THRESHOLDS[m]) compliant++;
+      }
+    });
+    return { fuel:f, totalCO2:parseFloat(totalCO2.toFixed(2)), sessions, compliance: sessions ? Math.round((compliant/sessions)*100) : 100 };
+  }).filter(s => s.sessions > 0).sort((a,b) => b.totalCO2 - a.totalCO2);
+}
+
+function computeOverallStats(history) {
+  const sessions   = history.filter(r => r.type==='session_start').length;
+  const entries    = history.filter(r => r.type==='data_entry');
+  const totalCO2   = parseFloat(entries.reduce((s,r) => s+(r.totalEmissions||0), 0).toFixed(2));
+  const daysActive = new Set(history.map(r => new Date(r.timestamp).toDateString())).size;
+  const fuelsUsed  = new Set(entries.map(r => r.fuel)).size;
+  return { sessions, totalCO2, daysActive, fuelsUsed };
+}
+
+function computeWeeklyBars(history) {
+  const bars = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const ds = d.toDateString();
+    const label = i===0 ? 'Today' : d.toLocaleDateString([],{weekday:'short'});
+    const co2 = history.filter(r => r.type==='data_entry' && new Date(r.timestamp).toDateString()===ds).reduce((s,r)=>s+(r.totalEmissions||0),0);
+    bars.push({ label, co2:parseFloat(co2.toFixed(1)), isToday:i===0 });
+  }
+  return bars;
+}
+
+// ─── Progress Panel ───────────────────────────────────────────────────────────
+function openProgress() {
+  const panel = document.getElementById('prog-panel');
+  panel.style.display = 'flex';
+  renderProgressHeader();
+  renderProgressBody();
+}
+function closeProgress() { document.getElementById('prog-panel').style.display = 'none'; }
+
+function switchTab(t) {
+  activeTab = t;
+  const ov = document.getElementById('tab-overview');
+  const se = document.getElementById('tab-sessions');
+  ov.style.color   = t==='overview' ? '#fff' : 'rgba(255,255,255,0.5)';
+  ov.style.borderBottom = t==='overview' ? '2px solid #81C784' : '2px solid transparent';
+  se.style.color   = t==='sessions' ? '#fff' : 'rgba(255,255,255,0.5)';
+  se.style.borderBottom = t==='sessions' ? '2px solid #81C784' : '2px solid transparent';
+  renderProgressBody();
+}
+
+function renderProgressHeader() {
+  const history = loadHistory();
+  const stats   = computeOverallStats(history);
+  const fuelStats = computeFuelStats();
+  const overallCompliance = fuelStats.length ? Math.round(fuelStats.reduce((s,f)=>s+f.compliance,0)/fuelStats.length) : 100;
+
+  document.getElementById('days-label').textContent = `${stats.daysActive} day${stats.daysActive!==1?'s':''} tracked`;
+  document.getElementById('hero-co2').textContent   = stats.totalCO2.toLocaleString('en-US',{maximumFractionDigits:1});
+  document.getElementById('stat-sessions').textContent = stats.sessions;
+  document.getElementById('stat-fuels').textContent    = stats.fuelsUsed;
+  document.getElementById('stat-days').textContent     = stats.daysActive;
+
+  const isGood = overallCompliance >= 70;
+  const badge  = document.getElementById('compliance-badge');
+  badge.style.backgroundColor = isGood ? 'rgba(129,199,132,0.25)' : 'rgba(211,47,47,0.25)';
+  badge.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${isGood?'#81C784':'#EF9A9A'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      ${isGood
+        ? '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>'
+        : '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'}
+    </svg>
+    <span style="font-size:0.72rem;font-weight:700;color:${isGood?'#81C784':'#EF9A9A'};">${overallCompliance}% compliant</span>`;
+
+  document.getElementById('prog-footer').style.display = history.length > 0 ? 'block' : 'none';
+}
+
+function renderProgressBody() {
+  renderProgressHeader();
+  const history   = loadHistory();
+  const fuelStats = computeFuelStats();
+  const body      = document.getElementById('prog-body');
+
+  if (activeTab === 'overview') {
+    const weeklyBars = computeWeeklyBars(history);
+    const maxCO2Week = Math.max(...weeklyBars.map(d=>d.co2), 1);
+    const overallCompliance = fuelStats.length ? Math.round(fuelStats.reduce((s,f)=>s+f.compliance,0)/fuelStats.length) : 100;
+    const isGood = overallCompliance >= 70;
+
+    // Weekly bar chart HTML
+    const barsHtml = weeklyBars.map(d => {
+      const pct = maxCO2Week > 0 ? (d.co2/maxCO2Week)*100 : 0;
+      return `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;">
+          <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:56px;">
+            <div style="width:100%;border-radius:4px 4px 0 0;background:${d.isToday?'#2E7D32':'#81C784'};opacity:${d.isToday?1:0.7};height:${Math.max(pct, d.co2>0?6:0)}%;min-height:${d.co2>0?'4px':'0'};"></div>
+          </div>
+          <span style="font-size:0.62rem;font-weight:500;color:${d.isToday?'#2E7D32':'#888'};">${d.label}</span>
+        </div>`;
+    }).join('');
+
+    // Fuel breakdown rows
+    const maxFuelCO2 = fuelStats.length ? fuelStats[0].totalCO2 : 1;
+    const fuelRowsHtml = fuelStats.length === 0
+      ? `<p style="text-align:center;color:#aaa;padding:16px 0;font-size:0.875rem;">No fuel data recorded yet.</p>`
+      : fuelStats.map((fs, i) => {
+          const pct = maxFuelCO2 > 0 ? (fs.totalCO2/maxFuelCO2)*100 : 0;
+          const fc  = FUEL_COLORS[fs.fuel];
+          const trendUp = fs.compliance < 70;
+          return `
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="padding:6px;border-radius:8px;background:${fc}18;color:${fc};display:flex;">${FUEL_SVG[fs.fuel]}</div>
+                  <span style="font-size:0.875rem;font-weight:600;color:#1B5E20;text-transform:capitalize;">${fs.fuel}</span>
+                  ${i===0?`<span style="font-size:0.68rem;padding:2px 7px;border-radius:999px;font-weight:700;background:#FFF3E0;color:#F57F17;">Most</span>`:''}
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span style="font-size:0.75rem;font-weight:700;color:#1B5E20;">${fs.totalCO2.toFixed(1)} kg</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${trendUp?'#D32F2F':'#2E7D32'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    ${trendUp?'<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>':'<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/>'}
+                  </svg>
+                </div>
+              </div>
+              <div style="width:100%;border-radius:999px;overflow:hidden;height:6px;background:#E8F5E9;">
+                <div style="width:${pct}%;height:100%;background:${fc};border-radius:999px;"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:3px;">
+                <span style="font-size:0.72rem;color:#aaa;">${fs.sessions} period${fs.sessions!==1?'s':''} tracked</span>
+                <span style="font-size:0.72rem;font-weight:500;color:${fs.compliance>=70?'#2E7D32':'#D32F2F'};">${fs.compliance}% compliant</span>
+              </div>
+            </div>`;
+        }).join('');
+
+    // Compliance ring
+    const ringStroke = (overallCompliance/100)*175.9;
+    const ringColor  = isGood ? '#2E7D32' : '#D32F2F';
+    const ringRows   = fuelStats.slice(0,3).map(fs => `
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:0.75rem;text-transform:capitalize;color:#555;">${fs.fuel}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:48px;height:4px;border-radius:999px;background:#E8F5E9;overflow:hidden;">
+            <div style="width:${fs.compliance}%;height:100%;background:${fs.compliance>=70?'#2E7D32':'#D32F2F'};border-radius:999px;"></div>
+          </div>
+          <span style="font-size:0.72rem;font-weight:700;width:28px;text-align:right;color:${fs.compliance>=70?'#2E7D32':'#D32F2F'};">${fs.compliance}%</span>
+        </div>
+      </div>`).join('');
+
+    body.innerHTML = `
+      <!-- Weekly bars -->
+      <div style="border-radius:16px;padding:16px;background:#fff;border:1.5px solid #D0E8D0;margin-bottom:14px;">
+        <p style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#1B5E20;margin:0 0 12px 0;">Last 7 Days</p>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:6px;height:80px;">
+          ${barsHtml}
+        </div>
+      </div>
+
+      <!-- Fuel breakdown -->
+      <div style="border-radius:16px;padding:16px;background:#fff;border:1.5px solid #D0E8D0;margin-bottom:14px;">
+        <p style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#1B5E20;margin:0 0 12px 0;">Fuel Breakdown</p>
+        <div style="display:flex;flex-direction:column;gap:14px;">${fuelRowsHtml}</div>
+      </div>
+
+      ${fuelStats.length > 0 ? `
+      <!-- Compliance ring -->
+      <div style="border-radius:16px;padding:16px;background:#fff;border:1.5px solid #D0E8D0;">
+        <p style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#1B5E20;margin:0 0 12px 0;">Compliance Overview</p>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <svg width="72" height="72" viewBox="0 0 72 72" style="flex-shrink:0;">
+            <circle cx="36" cy="36" r="28" fill="none" stroke="#E8F5E9" stroke-width="8"/>
+            <circle cx="36" cy="36" r="28" fill="none" stroke="${ringColor}" stroke-width="8"
+              stroke-dasharray="${ringStroke} 175.9" stroke-linecap="round" transform="rotate(-90 36 36)"/>
+            <text x="36" y="41" text-anchor="middle" font-size="13" font-weight="bold" fill="#1B5E20">${overallCompliance}%</text>
+          </svg>
+          <div style="flex:1;display:flex;flex-direction:column;gap:10px;">${ringRows}</div>
+        </div>
+      </div>` : ''}
+    `;
+
+  } else {
+    // Sessions tab
+    const sessionRecs = [...history].filter(r=>r.type==='data_entry').reverse().slice(0,30);
+
+    if (sessionRecs.length === 0) {
+      body.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 0;gap:12px;color:#aaa;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#81C784" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+          <p style="font-size:0.875rem;font-weight:500;margin:0;">No data entries yet.</p>
+          <p style="font-size:0.75rem;text-align:center;color:#bbb;margin:0;padding:0 20px;">Enter fuel values to start tracking your emission sessions.</p>
+        </div>`;
+      return;
+    }
+
+    body.innerHTML = sessionRecs.map(r => {
+      const fc       = FUEL_COLORS[r.fuel];
+      const dateStr  = new Date(r.timestamp).toLocaleDateString([],{month:'short',day:'numeric'});
+      const timeStr  = new Date(r.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      const thresh   = THRESHOLDS[r.mode];
+      const avg      = (r.totalEmissions||0) / (r.entryCount||1);
+      const pct      = Math.min((avg/thresh)*100, 100);
+      const isOver   = avg > thresh;
+      return `
+        <div style="border-radius:16px;padding:16px;background:#fff;border:1.5px solid #D0E8D0;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="padding:10px;border-radius:12px;background:${fc}18;color:${fc};display:flex;flex-shrink:0;">${FUEL_SVG[r.fuel]}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:0.875rem;font-weight:700;color:#1B5E20;text-transform:capitalize;">${r.fuel}</span>
+                <span style="font-size:0.72rem;color:#999;">${dateStr} · ${timeStr}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+                <span style="font-size:0.72rem;padding:2px 8px;border-radius:999px;background:#F1F8E9;color:#1B5E20;">${r.mode}</span>
+                <span style="font-size:0.75rem;font-weight:600;color:#2E7D32;">${(r.totalEmissions||0).toFixed(2)} kg CO₂</span>
+                <span style="font-size:0.72rem;color:#aaa;">${r.entryCount} ${r.entryCount===1?'entry':'entries'}</span>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span style="font-size:0.72rem;color:#aaa;">Avg vs limit</span>
+              <span style="font-size:0.72rem;font-weight:500;color:${isOver?'#D32F2F':'#2E7D32'};">${isOver?'⚠ Over limit':'✓ Within limit'}</span>
+            </div>
+            <div style="border-radius:999px;overflow:hidden;height:5px;background:#E8F5E9;">
+              <div style="width:${pct}%;height:100%;background:${isOver?'#D32F2F':'#2E7D32'};border-radius:999px;"></div>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+}
+
+// ─── Chart ────────────────────────────────────────────────────────────────────
+function renderChart(emissionsData) {
+  const ctx = document.getElementById('emi-chart').getContext('2d');
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: emissionsData.map((_,i)=>i+1),
+      datasets: [{
+        label: 'Emissions (kg CO₂)',
+        data: emissionsData,
+        borderColor: '#2E7D32',
+        borderWidth: 2.5,
+        pointBackgroundColor: '#2E7D32',
+        pointRadius: 4,
+        fill: true,
+        backgroundColor: ctx2 => {
+          const g = ctx2.chart.ctx.createLinearGradient(0,0,0,290);
+          g.addColorStop(0,'rgba(129,199,132,0.3)');
+          g.addColorStop(1,'rgba(129,199,132,0)');
+          return g;
+        },
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: false,
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: c=>`${c.parsed.y.toFixed(2)} kg CO₂` } } },
+      scales: { x:{grid:{color:'rgba(0,0,0,0.06)'}}, y:{grid:{color:'rgba(0,0,0,0.06)'},beginAtZero:true} }
+    }
+  });
+}
+
+// ─── Audit ────────────────────────────────────────────────────────────────────
+function renderAudit() {
+  const factor = FACTORS[fuel];
+  const nums   = entries.map(v=>parseFloat(v)||0);
+  const ems    = nums.map(v=>v*factor);
+  const total  = ems.reduce((s,v)=>s+v,0);
+  const avg    = ems.length ? total/ems.length : 0;
+  const limit  = THRESHOLDS[mode];
+  const isHigh = avg > limit;
+  const tips   = ADVICE[fuel][isHigh?'high':'stable'];
+  const line   = '━'.repeat(35);
+  document.getElementById('audit').innerHTML = `
+    <b>[ ${fuel.toUpperCase()} CORPORATE AUDIT ]</b><br>
+    ${line}<br>
+    • Total Emissions : ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} kg CO2<br>
+    • Intensity/Period: ${avg.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} kg<br>
+    • Compliance Limit: ${limit.toLocaleString('en-US',{maximumFractionDigits:0})}&nbsp;kg<br>
+    ${line}<br>
+    <b>AUDIT STATUS:</b><br>
+    &gt;&gt; ${isHigh?'⚠️ REDUCTION MANDATED':'✅ WITHIN COMPLIANCE'}<br><br>
+    <b>STRATEGIC ADVICE:</b><br>
+    ${tips.map((t,i)=>`${i+1}. ${t}`).join('<br><br>')}`;
+}
+
+// ─── Entry grid ───────────────────────────────────────────────────────────────
+function getLabelPrefix() { return {Daily:'Day',Weekly:'Week',Monthly:'Month',Yearly:'Year'}[mode]; }
+
+function renderEntryGrid() {
+  const grid   = document.getElementById('entry-grid');
+  const count  = PERIODS[mode];
+  const prefix = getLabelPrefix();
+  const unit   = UNIT_MAP[fuel];
+  grid.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const row = document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;background:#F1F8E9;';
+    row.innerHTML=`
+      <label style="font-weight:700;color:#1B5E20;min-width:70px;flex-shrink:0;">${prefix} ${i+1}:</label>
+      <input type="text" data-i="${i}" value="${entries[i]||''}" placeholder="${unit}"
+        style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #333;background:#fff;font-size:0.9rem;outline:none;"/>`;
+    grid.appendChild(row);
+  }
+  grid.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      entries[parseInt(e.target.dataset.i)] = e.target.value;
+      persistEntries();
+      updateDerived();
+      scheduleHistoryEntry();
+    });
+  });
+}
+
+function updateDerived() {
+  const factor = FACTORS[fuel];
+  const ems    = entries.map(v=>(parseFloat(v)||0)*factor);
+  document.getElementById('chart-title').textContent = fuel.charAt(0).toUpperCase()+fuel.slice(1)+' Trend';
+  renderChart(ems);
+  renderAudit();
+}
+
+function persistEntries() { localStorage.setItem(`${fuel}_${mode}`, JSON.stringify(entries)); }
+
+function loadEntries() {
+  const raw = localStorage.getItem(`${fuel}_${mode}`);
+  entries = raw ? JSON.parse(raw) : Array(PERIODS[mode]).fill('');
+}
+
+function scheduleHistoryEntry() {
+  if (debTimer) clearTimeout(debTimer);
+  debTimer = setTimeout(()=>{
+    const factor = FACTORS[fuel];
+    const nums   = entries.map(v=>parseFloat(v)||0);
+    const filled = nums.filter(n=>n>0);
+    if (!filled.length) return;
+    const totalEm = nums.reduce((s,v)=>s+v*factor,0);
+    pushActivity({ fuel, mode, type:'data_entry', totalEmissions:parseFloat(totalEm.toFixed(2)), entryCount:filled.length });
+  }, 1500);
+}
+
+// ─── Fuel buttons ─────────────────────────────────────────────────────────────
+function renderFuelBtns() {
+  const c = document.getElementById('fuel-btns');
+  c.innerHTML = '';
+  Object.keys(FACTORS).sort().forEach(f=>{
+    const b = document.createElement('button');
+    b.textContent = f.toUpperCase();
+    b.style.cssText=`padding:12px 16px;border-radius:8px;border:1.5px solid #333;background:${f===fuel?'#81C784':'#fff'};color:#1B5E20;font-weight:600;font-size:0.875rem;cursor:pointer;text-align:left;`;
+    b.onclick=()=>switchFuel(f);
+    c.appendChild(b);
+  });
+}
+
+function renderModeBtns() {
+  const c = document.getElementById('mode-btns');
+  c.innerHTML = '';
+  Object.keys(PERIODS).forEach(m=>{
+    const b = document.createElement('button');
+    b.textContent = m;
+    b.style.cssText=`padding:8px 24px;border-radius:8px;border:1.5px solid #333;background:${m===mode?'#2E7D32':'#E0E0E0'};color:${m===mode?'#fff':'#1B5E20'};font-weight:600;font-size:0.875rem;cursor:pointer;`;
+    b.onclick=()=>switchMode(m);
+    c.appendChild(b);
+  });
+}
+
+function switchFuel(f) {
+  if (f===fuel) return;
+  fuel=f;
+  pushActivity({fuel:f,mode,type:'fuel_switch'});
+  loadEntries();
+  renderFuelBtns();
+  document.getElementById('panel-title').textContent = f.toUpperCase()+' ANALYSIS';
+  renderEntryGrid();
+  updateDerived();
+}
+
+function switchMode(m) {
+  if (m===mode) return;
+  mode=m;
+  pushActivity({fuel,mode:m,type:'mode_switch'});
+  loadEntries();
+  renderModeBtns();
+  renderEntryGrid();
+  updateDerived();
+}
+
+function resetMode() {
+  localStorage.removeItem(`${fuel}_${mode}`);
+  entries = Array(PERIODS[mode]).fill('');
+  pushActivity({fuel,mode,type:'reset'});
+  renderEntryGrid();
+  updateDerived();
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+function boot() {
+  document.getElementById('splash').style.display = 'none';
+  const app = document.getElementById('app');
+  app.style.display = 'flex';
+
+  pushActivity({fuel,mode,type:'session_start'});
+  loadEntries();
+  document.getElementById('panel-title').textContent = fuel.toUpperCase()+' ANALYSIS';
+  renderFuelBtns();
+  renderModeBtns();
+  renderEntryGrid();
+  updateDerived();
+}
+
+setTimeout(boot, 3000);
+</script>
+</body>
+</html>

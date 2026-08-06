@@ -1,0 +1,288 @@
+import customtkinter as ctk
+from tkinter import Canvas
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import time
+import json
+import os
+
+# --- PREMIUM PALETTE ---
+COL_PRIMARY = "#2E7D32"
+COL_ACCENT = "#81C784"
+COL_BG_LIGHT = "#F1F8E9"
+COL_WHITE = "#FFFFFF"
+COL_TEXT = "#1B5E20"
+COL_DANGER = "#D32F2F"
+
+ctk.set_appearance_mode("light")
+
+class TerraSpecApp(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+
+        # --- DATA PERSISTENCE ---
+        self.db_file = "terra_data.json"
+        self.db = self.load_database()
+
+        self.withdraw()
+        self.run_premium_splash()
+        
+        self.title("Terra Spec - Professional Eco-Consultant")
+        self.geometry("1300x950")
+        
+        # Environmental Constants
+        self.factors = {"petrol": 2.31, "diesel": 2.68, "coal": 2.42, "firewood": 1.65, "lpg": 2.98, "cng": 2.66, "electricity": 0.85}
+        self.periods = {"Daily": 7, "Weekly": 4, "Monthly": 6, "Yearly": 5}
+        # Scaled thresholds for MNC/Industrial use (Average kg per entry)
+        self.thresholds = {"Daily": 15, "Weekly": 100, "Monthly": 5000, "Yearly": 100000}
+        
+        self.selected_fuel = "petrol"
+
+        # --- ROOT GRID ---
+        self.grid_rowconfigure(0, weight=1) 
+        self.grid_rowconfigure(1, weight=1) 
+        self.grid_columnconfigure(0, weight=1)
+
+        # ==========================================
+        # TOP SECTION: BRANDING & INPUT
+        # ==========================================
+        self.top_half = ctk.CTkFrame(self, fg_color="transparent")
+        self.top_half.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        
+        self.top_half.grid_columnconfigure(0, weight=30) # Sidebar
+        self.top_half.grid_columnconfigure(1, weight=70) # Main Input Area
+        self.top_half.grid_rowconfigure(0, weight=1)
+
+        # 1. Sidebar
+        self.sidebar = ctk.CTkFrame(self.top_half, corner_radius=25, fg_color=COL_BG_LIGHT, border_width=1, border_color="#C8E6C9")
+        self.sidebar.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        
+        self.draw_refined_logo(self.sidebar, size=95)
+        ctk.CTkLabel(self.sidebar, text="TERRA SPEC", font=("Segoe UI", 24, "bold"), text_color=COL_PRIMARY).pack(pady=(5, 15))
+
+        self.fuel_frame = ctk.CTkScrollableFrame(self.sidebar, fg_color="transparent", height=200)
+        self.fuel_frame.pack(fill="both", expand=True, padx=15, pady=5)
+        for fuel in sorted(self.factors.keys()):
+            ctk.CTkButton(self.fuel_frame, text=fuel.upper(), fg_color=COL_WHITE, text_color=COL_TEXT,
+                         hover_color=COL_ACCENT, height=38, corner_radius=10, 
+                         command=lambda f=fuel: self.change_fuel(f)).pack(fill="x", pady=3)
+
+        # 2. Main Entry Panel
+        self.entry_panel = ctk.CTkFrame(self.top_half, fg_color=COL_WHITE, corner_radius=25, border_width=1, border_color="#E0E0E0")
+        self.entry_panel.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        
+        # Header Row 1: Title and Mode Selector
+        self.header_top = ctk.CTkFrame(self.entry_panel, fg_color="transparent")
+        self.header_top.pack(fill="x", padx=25, pady=(20, 5))
+        
+        self.fuel_title = ctk.CTkLabel(self.header_top, text="PETROL ANALYSIS", font=("Segoe UI", 22, "bold"), text_color=COL_PRIMARY)
+        self.fuel_title.pack(side="left")
+
+        self.mode_var = ctk.StringVar(value="Daily")
+        self.mode_bar = ctk.CTkSegmentedButton(self.header_top, values=["Daily", "Weekly", "Monthly", "Yearly"],
+                                               variable=self.mode_var, command=self.refresh_ui, width=380, height=35)
+        self.mode_bar.pack(side="right")
+
+        # Header Row 2: Dedicated Reset Zone
+        self.action_bar = ctk.CTkFrame(self.entry_panel, fg_color="transparent", height=40)
+        self.action_bar.pack(fill="x", padx=25, pady=(0, 10))
+        
+        self.reset_btn = ctk.CTkButton(self.action_bar, text="↺ RESET CURRENT MODE", fg_color="transparent", 
+                                      text_color=COL_DANGER, border_width=1, border_color=COL_DANGER, 
+                                      hover_color="#FFEBEE", width=160, height=30, 
+                                      font=("Segoe UI", 11, "bold"), command=self.reset_current_mode)
+        self.reset_btn.pack(side="right") 
+
+        self.entry_grid = ctk.CTkFrame(self.entry_panel, fg_color="transparent")
+        self.entry_grid.pack(expand=True, fill="both", padx=20, pady=5)
+
+        # ==========================================
+        # BOTTOM SECTION: SQUARED OUTPUT
+        # ==========================================
+        self.bottom_half = ctk.CTkFrame(self, fg_color="#F5F7F5", corner_radius=0)
+        self.bottom_half.grid(row=1, column=0, sticky="nsew")
+        
+        self.bottom_half.grid_columnconfigure(0, weight=1) 
+        self.bottom_half.grid_columnconfigure(1, weight=0) # SQUARE 1
+        self.bottom_half.grid_columnconfigure(2, weight=0) # SQUARE 2
+        self.bottom_half.grid_columnconfigure(3, weight=1) 
+        self.bottom_half.grid_rowconfigure(0, weight=1)
+
+        self.graph_box = ctk.CTkFrame(self.bottom_half, fg_color=COL_WHITE, corner_radius=25, 
+                                     width=450, height=420, border_width=1, border_color="#DDDDDD")
+        self.graph_box.grid(row=0, column=1, padx=15, pady=25, sticky="nsew")
+        self.graph_box.grid_propagate(False)
+
+        self.results_card = ctk.CTkFrame(self.bottom_half, fg_color=COL_WHITE, corner_radius=25, 
+                                        width=450, height=420, border_width=1, border_color="#DDDDDD")
+        self.results_card.grid(row=0, column=2, padx=15, pady=25, sticky="nsew")
+        self.results_card.grid_propagate(False)
+
+        ctk.CTkLabel(self.results_card, text="ENVIRONMENTAL AUDIT", font=("Segoe UI", 16, "bold"), text_color=COL_PRIMARY).pack(pady=(15, 5))
+
+        self.recs_text = ctk.CTkTextbox(self.results_card, corner_radius=15, font=("Segoe UI", 12), 
+                                        fg_color="#FAFAFA", border_width=0, wrap="word", text_color="#222222")
+        self.recs_text.pack(fill="both", expand=True, padx=20, pady=(5, 20))
+
+        # --- UPDATED CREDIT FOOTER ---
+        ctk.CTkLabel(self, text="Made by Aditya with Gemini", font=("Segoe UI", 11, "italic"), text_color="#777777").place(relx=0.02, rely=0.98, anchor="sw")
+
+        self.refresh_ui()
+        self.deiconify()
+
+    # --- DATABASE ---
+    def load_database(self):
+        if os.path.exists(self.db_file):
+            try:
+                with open(self.db_file, "r") as f: return json.load(f)
+            except: return {}
+        return {}
+
+    def save_to_database(self, key, values):
+        self.db[key] = values
+        with open(self.db_file, "w") as f: json.dump(self.db, f)
+
+    def reset_current_mode(self):
+        data_key = f"{self.selected_fuel}_{self.mode_var.get()}"
+        if data_key in self.db:
+            del self.db[data_key]
+            with open(self.db_file, "w") as f: json.dump(self.db, f)
+        self.refresh_ui()
+
+    # --- BRANDING ---
+    def draw_refined_logo(self, parent, size):
+        canvas = Canvas(parent, width=size, height=size, bg=COL_BG_LIGHT, highlightthickness=0)
+        canvas.pack(pady=(20, 0))
+        canvas.create_oval(10, 10, size-10, size-10, fill=COL_PRIMARY, outline=COL_TEXT, width=2)
+        canvas.create_arc(15, 15, size-15, size-15, start=45, extent=180, fill=COL_ACCENT, outline="")
+        canvas.create_text(size/2, size/2 + 5, text="CO2", fill=COL_WHITE, font=("Arial", 18, "bold"))
+
+    def run_premium_splash(self):
+        splash = ctk.CTkToplevel()
+        splash.overrideredirect(True)
+        w, h = 450, 300
+        sw, sh = splash.winfo_screenwidth(), splash.winfo_screenheight()
+        splash.geometry(f"{w}x{h}+{(sw//2)-(w//2)}+{(sh//2)-(h//2)}")
+        splash.configure(fg_color=COL_WHITE)
+        self.draw_refined_logo(splash, 100)
+        ctk.CTkLabel(splash, text="TERRA SPEC", font=("Segoe UI", 28, "bold"), text_color=COL_PRIMARY).pack(pady=20)
+        splash.update()
+        time.sleep(3)
+        splash.destroy()
+
+    def get_expert_advice(self, fuel, is_high):
+        advice_map = {
+            "petrol": {
+                "high": ["Review logistics routes to optimize fuel usage.", "Transition fleet to hybrid/EV models to lower long-term overhead."],
+                "stable": ["Sustainable consumption levels. Maintain current logistical efficiency."]
+            },
+            "coal": {
+                "high": ["Exceeding industrial benchmarks. Consider upgrading scrubbers or transitioning to Natural Gas.", "Implement heat recovery systems to maximize energy extraction from coal combustion."],
+                "stable": ["Emissions are within corporate compliance levels for this period."]
+            },
+            "electricity": {
+                "high": ["Install solar arrays to offset grid dependency.", "Conduct a facility-wide energy audit to identify hardware inefficiencies."],
+                "stable": ["Efficient electricity profile. Continue monitoring peak-load times."]
+            }
+        }
+        status = "high" if is_high else "stable"
+        return advice_map.get(fuel, {}).get(status, ["Analyze machinery duty cycles for energy savings.", "Continue scheduled maintenance to ensure peak efficiency."])
+
+    # --- LOGIC ---
+    def refresh_ui(self, *args):
+        for widget in self.entry_grid.winfo_children(): widget.destroy()
+        self.entries = []
+        mode = self.mode_var.get()
+        
+        # Dynamic Label Selection
+        label_prefix = "Day"
+        if mode == "Weekly": label_prefix = "Week"
+        elif mode == "Monthly": label_prefix = "Month"
+        elif mode == "Yearly": label_prefix = "Year"
+            
+        count = self.periods[mode]
+        data_key = f"{self.selected_fuel}_{mode}"
+        saved_values = self.db.get(data_key, [""] * count)
+
+        for i in range(count):
+            r, c = divmod(i, 2)
+            f = ctk.CTkFrame(self.entry_grid, fg_color=COL_BG_LIGHT, corner_radius=12)
+            f.grid(row=r, column=c, padx=12, pady=6, sticky="ew")
+            self.entry_grid.grid_columnconfigure(c, weight=1)
+            
+            # Updated Label logic here
+            ctk.CTkLabel(f, text=f"{label_prefix} {i+1}:", width=80, font=("Segoe UI", 11, "bold"), text_color=COL_TEXT).pack(side="left", padx=10)
+            e = ctk.CTkEntry(f, border_width=1, corner_radius=8, fg_color=COL_WHITE)
+            e.insert(0, str(saved_values[i]) if i < len(saved_values) else "")
+            e.pack(side="left", fill="x", expand=True, padx=10, pady=8)
+            e.bind("<KeyRelease>", lambda event: self.update_output())
+            self.entries.append(e)
+        self.update_output()
+
+    def update_output(self):
+        try:
+            mode = self.mode_var.get()
+            data_key = f"{self.selected_fuel}_{mode}"
+            raw_input = [e.get().strip() for e in self.entries]
+            self.save_to_database(data_key, raw_input)
+
+            numeric_data = [float(val) if val else 0.0 for val in raw_input]
+            mult = self.factors[self.selected_fuel]
+            emissions = [val * mult for val in numeric_data]
+            total, avg = sum(emissions), (sum(emissions)/len(emissions) if emissions else 0)
+            
+            # DYNAMIC THRESHOLD CHECK (Scaling for MNC/Factory levels)
+            limit = self.thresholds.get(mode, 5)
+            is_high = avg > limit
+            
+            # --- Graph with Point Annotations ---
+            for w in self.graph_box.winfo_children(): w.destroy()
+            fig, ax = plt.subplots(figsize=(4, 4), dpi=95)
+            fig.patch.set_facecolor('white')
+            ax.plot(range(len(emissions)), emissions, marker='o', color=COL_PRIMARY, linewidth=2.5, markersize=8)
+            ax.fill_between(range(len(emissions)), emissions, color=COL_ACCENT, alpha=0.2)
+            ax.set_title(f"{self.selected_fuel.capitalize()} Trend", fontsize=10, fontweight='bold')
+            
+            for i, val in enumerate(emissions):
+                if val > 0:
+                    ax.annotate(f"{val:.0f}", (i, val), textcoords="offset points", xytext=(0,10), 
+                                ha='center', fontsize=9, fontweight='bold', color=COL_TEXT)
+            
+            ax.grid(True, linestyle=':', alpha=0.6)
+            canvas = FigureCanvasTkAgg(fig, master=self.graph_box)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
+            plt.close(fig)
+
+            # --- Expert Audit ---
+            self.recs_text.configure(state="normal")
+            self.recs_text.delete("1.0", "end")
+            
+            report = f" [ {self.selected_fuel.upper()} CORPORATE AUDIT ]\n"
+            report += "━" * 35 + "\n"
+            report += f" • Total Emissions : {total:,.2f} kg CO2\n"
+            report += f" • Intensity/Period: {avg:,.2f} kg\n"
+            report += f" • Compliance Limit: {limit:,.0f} kg\n"
+            report += "━" * 35 + "\n\n"
+            
+            report += " AUDIT STATUS:\n"
+            status = "⚠️ REDUCTION MANDATED" if is_high else "✅ WITHIN COMPLIANCE"
+            report += f" >> {status}\n\n"
+            
+            report += " STRATEGIC ADVICE:\n"
+            tips = self.get_expert_advice(self.selected_fuel, is_high)
+            for i, tip in enumerate(tips, 1):
+                report += f" {i}. {tip}\n\n"
+            
+            self.recs_text.insert("1.0", report)
+            self.recs_text.configure(state="disabled")
+        except: pass
+
+    def change_fuel(self, fuel):
+        self.selected_fuel = fuel
+        self.fuel_title.configure(text=f"{fuel.upper()} ANALYSIS")
+        self.refresh_ui()
+
+if __name__ == "__main__":
+    app = TerraSpecApp()
+    app.mainloop()
